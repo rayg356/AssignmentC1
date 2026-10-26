@@ -4,6 +4,7 @@ import argparse
 import sys
 from datetime import datetime
 
+from logscope.commands.grep_cmd import parse_since, render_grep_text, run_grep
 from logscope.commands.summary import SummaryResult, run_summary
 from logscope.commands.timeline import render_timeline_text, run_timeline
 
@@ -40,6 +41,11 @@ def build_parser() -> argparse.ArgumentParser:
     timeline_parser.add_argument("logfile")
     timeline_parser.add_argument("--bucket", default="15m")
 
+    grep_parser = subparsers.add_parser("grep", help="Filter log lines")
+    grep_parser.add_argument("logfile")
+    grep_parser.add_argument("--level", required=True, choices=["INFO", "WARN", "ERROR"])
+    grep_parser.add_argument("--since")
+
     return parser
 
 
@@ -72,6 +78,32 @@ def run_from_args(args: argparse.Namespace) -> int:
             print(f"Error: {exc}", file=sys.stderr)
             return 2
         print(render_timeline_text(result))
+        return 0
+
+    if args.command == "grep":
+        handle = _open_lines(args.logfile)
+        if handle is None:
+            return 1
+
+        since_dt: datetime | None = None
+        if args.since is not None:
+            try:
+                since_dt = parse_since(args.since)
+            except ValueError:
+                print(
+                    "Error: invalid --since timestamp, expected YYYY-MM-DD HH:MM",
+                    file=sys.stderr,
+                )
+                return 2
+
+        try:
+            with handle:
+                result = run_grep(handle, level=args.level, since=since_dt)
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 2
+
+        print(render_grep_text(result))
         return 0
 
     print("Error: unknown command", file=sys.stderr)
