@@ -80,6 +80,20 @@ def run_timeline(lines: Iterable[str], bucket: str = "15m") -> TimelineResult:
     )
 
 
+def timeline_to_payload(result: TimelineResult) -> dict[str, object]:
+    return {
+        "bucket": result.bucket,
+        "buckets": [
+            {
+                "start": bucket.start.strftime("%Y-%m-%d %H:%M"),
+                "error_count": bucket.error_count,
+            }
+            for bucket in result.buckets
+        ],
+        "malformed_count": result.malformed_count,
+    }
+
+
 def render_timeline_text(result: TimelineResult, width: int = 40) -> str:
     lines: list[str] = []
     lines.append(f"Bucket: {result.bucket}")

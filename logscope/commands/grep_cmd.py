@@ -61,6 +61,21 @@ def run_grep(lines: Iterable[str], level: str, since: datetime | None = None) ->
     return GrepResult(matches=matches, malformed_count=malformed_count)
 
 
+def grep_to_payload(result: GrepResult) -> dict[str, object]:
+    return {
+        "matches": [
+            {
+                "timestamp": match.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                "level": match.level,
+                "message": match.message,
+                "raw": match.raw,
+            }
+            for match in result.matches
+        ],
+        "malformed_count": result.malformed_count,
+    }
+
+
 def render_grep_text(result: GrepResult) -> str:
     lines = [match.raw for match in result.matches]
     lines.append(f"Malformed lines: {result.malformed_count}")

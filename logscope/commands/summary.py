@@ -66,3 +66,56 @@ def run_summary(lines: Iterable[str]) -> SummaryResult:
         last_timestamp=last_timestamp,
         malformed_count=malformed_count,
     )
+
+
+def summary_to_payload(result: SummaryResult) -> dict[str, object]:
+    return {
+        "info_count": result.info_count,
+        "warn_count": result.warn_count,
+        "error_count": result.error_count,
+        "top_errors": [
+            {"message": message, "count": count}
+            for message, count in result.top_errors
+        ],
+        "first_timestamp": (
+            result.first_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            if result.first_timestamp is not None
+            else None
+        ),
+        "last_timestamp": (
+            result.last_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            if result.last_timestamp is not None
+            else None
+        ),
+        "malformed_count": result.malformed_count,
+    }
+
+
+def render_summary_text(result: SummaryResult) -> str:
+    lines = [
+        f"INFO: {result.info_count}",
+        f"WARN: {result.warn_count}",
+        f"ERROR: {result.error_count}",
+        "First timestamp: "
+        + (
+            result.first_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            if result.first_timestamp is not None
+            else "N/A"
+        ),
+        "Last timestamp: "
+        + (
+            result.last_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            if result.last_timestamp is not None
+            else "N/A"
+        ),
+        f"Malformed lines: {result.malformed_count}",
+        "Top 5 error messages:",
+    ]
+
+    if not result.top_errors:
+        lines.append("- None")
+    else:
+        for message, count in result.top_errors:
+            lines.append(f"- {message}: {count}")
+
+    return "\n".join(lines)

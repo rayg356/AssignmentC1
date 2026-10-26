@@ -4,30 +4,10 @@ import argparse
 import sys
 from datetime import datetime
 
-from logscope.commands.grep_cmd import parse_since, render_grep_text, run_grep
-from logscope.commands.summary import SummaryResult, run_summary
-from logscope.commands.timeline import render_timeline_text, run_timeline
-
-
-def _format_timestamp(value: datetime | None) -> str:
-    if value is None:
-        return "N/A"
-    return value.strftime("%Y-%m-%d %H:%M:%S")
-
-
-def _print_summary(result: SummaryResult) -> None:
-    print(f"INFO: {result.info_count}")
-    print(f"WARN: {result.warn_count}")
-    print(f"ERROR: {result.error_count}")
-    print(f"First timestamp: {_format_timestamp(result.first_timestamp)}")
-    print(f"Last timestamp: {_format_timestamp(result.last_timestamp)}")
-    print(f"Malformed lines: {result.malformed_count}")
-    print("Top 5 error messages:")
-    if not result.top_errors:
-        print("- None")
-        return
-    for message, count in result.top_errors:
-        print(f"- {message}: {count}")
+from logscope.commands.grep_cmd import grep_to_payload, parse_since, render_grep_text, run_grep
+from logscope.commands.summary import render_summary_text, run_summary, summary_to_payload
+from logscope.commands.timeline import render_timeline_text, run_timeline, timeline_to_payload
+from logscope.renderers import to_json, write_markdown_report
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,15 +16,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     summary_parser = subparsers.add_parser("summary", help="Summarize a log file")
     summary_parser.add_argument("logfile")
+    summary_parser.add_argument("--format", choices=["text", "json", "md"], default="text")
 
     timeline_parser = subparsers.add_parser("timeline", help="Show ERROR timeline")
     timeline_parser.add_argument("logfile")
     timeline_parser.add_argument("--bucket", default="15m")
+    timeline_parser.add_argument("--format", choices=["text", "json", "md"], default="text")
 
     grep_parser = subparsers.add_parser("grep", help="Filter log lines")
     grep_parser.add_argument("logfile")
     grep_parser.add_argument("--level", required=True, choices=["INFO", "WARN", "ERROR"])
     grep_parser.add_argument("--since")
+    grep_parser.add_argument("--format", choices=["text", "json", "md"], default="text")
 
     return parser
 
@@ -57,6 +40,21 @@ def _open_lines(logfile: str):
         return None
 
 
+def _emit_output(command: str, logfile: str, fmt: str, payload: dict[str, object], text: str) -> int:
+    if fmt == "text":
+        print(text)
+        return 0
+    if fmt == "json":
+        print(to_json(payload))
+        return 0
+    if fmt == "md":
+        path = write_markdown_report(logfile, command, payload)
+        print(path)
+        return 0
+    print(f"Error: unsupported format '{fmt}'", file=sys.stderr)
+    return 2
+
+
 def run_from_args(args: argparse.Namespace) -> int:
     if args.command == "summary":
         handle = _open_lines(args.logfile)
@@ -64,8 +62,13 @@ def run_from_args(args: argparse.Namespace) -> int:
             return 1
         with handle:
             result = run_summary(handle)
-        _print_summary(result)
-        return 0
+        return _emit_output(
+            command="summary",
+            logfile=args.logfile,
+            fmt=args.format,
+            payload=summary_to_payload(result),
+            text=render_summary_text(result),
+        )
 
     if args.command == "timeline":
         handle = _open_lines(args.logfile)
@@ -77,8 +80,13 @@ def run_from_args(args: argparse.Namespace) -> int:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 2
-        print(render_timeline_text(result))
-        return 0
+        return _emit_output(
+            command="timeline",
+            logfile=args.logfile,
+            fmt=args.format,
+            payload=timeline_to_payload(result),
+            text=render_timeline_text(result),
+        )
 
     if args.command == "grep":
         handle = _open_lines(args.logfile)
@@ -103,8 +111,13 @@ def run_from_args(args: argparse.Namespace) -> int:
             print(f"Error: {exc}", file=sys.stderr)
             return 2
 
-        print(render_grep_text(result))
-        return 0
+        return _emit_output(
+            command="grep",
+            logfile=args.logfile,
+            fmt=args.format,
+            payload=grep_to_payload(result),
+            text=render_grep_text(result),
+        )
 
     print("Error: unknown command", file=sys.stderr)
     return 2
