@@ -1,0 +1,12 @@
+INFO: 1424288
+WARN: 548588
+ERROR: 219043
+First timestamp: 2026-10-01 09:00:00
+Last timestamp: 2026-12-17 05:44:21
+Malformed lines: 22418
+Top 5 error messages:
+- Timeout while calling upstream service: 43963
+- Message queue publish failed: 43857
+- Authentication token validation failed: 43804
+- Database connection failed: 43760
+- Unhandled exception in worker: 43659
